@@ -1,0 +1,23 @@
+{
+  "name": "sipinna-backend",
+  "version": "1.0.0",
+  "description": "Handlers Lambda del Sistema de Reporte de Trabajo Infantil - SIPINNA Atizapan de Zaragoza",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/handlers/crearReporte.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.637.0",
+    "@aws-sdk/client-dynamodb": "^3.637.0",
+    "@aws-sdk/client-s3": "^3.637.0",
+    "@aws-sdk/client-sns": "^3.637.0",
+    "@aws-sdk/lib-dynamodb": "^3.637.0",
+    "@aws-sdk/s3-request-presigner": "^3.637.0",
+    "aws-jwt-verify": "^5.2.1"
+  }
+}
