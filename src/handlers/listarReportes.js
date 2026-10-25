@@ -39,7 +39,9 @@ export const handler = manejar(async (evento) => {
 
   const nombres = {};
   const valores = {};
-  const filtros = [];
+  // Los eliminados no se listan. El atributo solo existe en los borrados, asi
+  // que basta comprobar su ausencia y no hace falta migrar los reportes viejos.
+  const filtros = ['attribute_not_exists(eliminado)'];
 
   // Filtros que no van en la condicion de clave.
   for (const { parametro, clave } of INDICES) {

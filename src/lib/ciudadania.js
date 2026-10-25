@@ -12,11 +12,27 @@ import { CognitoJwtVerifier } from 'aws-jwt-verify';
  * El verificador cachea las llaves publicas del pool entre invocaciones, asi
  * que el costo real es una sola descarga por contenedor tibio.
  */
-const verificador = CognitoJwtVerifier.create({
-  userPoolId: process.env.USER_POOL_ID_CIUDADANIA ?? '',
-  tokenUse: 'access',
-  clientId: process.env.COGNITO_CLIENT_ID_CIUDADANIA ?? '',
-});
+let verificador = null;
+
+/**
+ * Construye el verificador la primera vez que hace falta, y no al cargar el
+ * modulo.
+ *
+ * CognitoJwtVerifier.create() valida sus parametros de inmediato y lanza si el
+ * identificador del pool viene vacio. Al construirlo arriba, una lambda que solo
+ * queria dar de alta un reporte moria durante el import y el API respondia 500
+ * aunque la peticion fuera anonima y no necesitara verificar nada.
+ */
+function obtenerVerificador() {
+  if (verificador) return verificador;
+
+  verificador = CognitoJwtVerifier.create({
+    userPoolId: process.env.USER_POOL_ID_CIUDADANIA,
+    tokenUse: 'access',
+    clientId: process.env.COGNITO_CLIENT_ID_CIUDADANIA,
+  });
+  return verificador;
+}
 
 /**
  * Devuelve el "sub" de la persona autenticada, o null si la peticion es
@@ -38,7 +54,7 @@ export async function identidadCiudadanaOpcional(evento) {
   if (!token) return null;
 
   try {
-    const claims = await verificador.verify(token);
+    const claims = await obtenerVerificador().verify(token);
     return claims.sub ?? null;
   } catch (e) {
     console.warn(JSON.stringify({

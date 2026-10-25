@@ -9,6 +9,7 @@ import { generarUrlDeLectura } from '../lib/evidencia.js';
 import { generarPdf } from '../lib/pdf.js';
 import { auditar } from '../lib/auditoria.js';
 import { ulid } from '../lib/ulid.js';
+import { cantidadNNADe } from '../lib/dominio.js';
 
 const COLUMNAS = [
   ['reporteId', 'Folio'],

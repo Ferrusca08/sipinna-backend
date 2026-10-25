@@ -131,6 +131,7 @@ export const PERMISOS = {
     'seguimiento:agregar',
     'reportes:asignar',
     'estadisticas:ver',
+    'reportes:eliminar',
   ],
   directivo: [
     'reportes:ver',
@@ -142,6 +143,9 @@ export const PERMISOS = {
     'datos:exportar',
     'usuarios:gestionar',
     'auditoria:ver',
+    // Borrar un caso lo saca del listado y de las estadisticas. Queda en una
+    // sola persona responsable y no en la operacion diaria.
+    'reportes:eliminar',
   ],
 };
 

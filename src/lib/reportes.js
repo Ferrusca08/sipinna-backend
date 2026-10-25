@@ -46,7 +46,7 @@ export function decodificarCursor(cursor) {
  * Se usa solo en estadisticas, heatmap y exportacion, donde hace falta el
  * universo entero y no un listado paginado.
  */
-export async function recorrerTodos({ desde, hasta, limiteSeguridad = 20000 } = {}) {
+export async function recorrerTodos({ desde, hasta, limiteSeguridad = 20000, incluirEliminados = false } = {}) {
   const items = [];
   let cursor;
 
@@ -58,6 +58,13 @@ export async function recorrerTodos({ desde, hasta, limiteSeguridad = 20000 } = 
 
     const filtros = [];
     const valores = {};
+
+    // Un reporte eliminado no cuenta para estadisticas, mapa ni exportaciones:
+    // seguiria inflando los totales aunque ya no se vea en el listado.
+    if (!incluirEliminados) {
+      filtros.push('attribute_not_exists(eliminado)');
+    }
+
     if (desde) {
       filtros.push('fechaCreacion >= :desde');
       valores[':desde'] = desde;
@@ -68,7 +75,9 @@ export async function recorrerTodos({ desde, hasta, limiteSeguridad = 20000 } = 
     }
     if (filtros.length) {
       params.FilterExpression = filtros.join(' AND ');
-      params.ExpressionAttributeValues = valores;
+      if (Object.keys(valores).length > 0) {
+        params.ExpressionAttributeValues = valores;
+      }
     }
 
     const respuesta = await dynamo.send(new ScanCommand(params));

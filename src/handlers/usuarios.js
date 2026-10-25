@@ -3,6 +3,8 @@ import {
   AdminListGroupsForUserCommand,
   AdminCreateUserCommand,
   AdminAddUserToGroupCommand,
+  AdminRemoveUserFromGroupCommand,
+  AdminUpdateUserAttributesCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 import { cognito, USER_POOL_ID } from '../lib/aws.js';
@@ -117,17 +119,110 @@ async function crear(evento, usuario) {
   );
 }
 
+async function actualizarRol(evento, usuario, cuerpoPrevio) {
+  const cuerpo = cuerpoPrevio || leerCuerpo(evento);
+  const username = String(
+    evento?.pathParameters?.id ||
+    evento?.pathParameters?.username ||
+    cuerpo?.username ||
+    cuerpo?.email ||
+    ''
+  ).trim();
+
+  if (!username) {
+    throw new ErrorHttp(400, 'El identificador de usuario (username o email) es obligatorio.');
+  }
+
+  const nuevoRol = String(cuerpo?.grupo || cuerpo?.rol || '').trim().toLowerCase();
+  if (!GRUPOS_VALIDOS.includes(nuevoRol)) {
+    throw new ErrorHttp(400, `Rol inválido. Valores permitidos: ${GRUPOS_VALIDOS.join(', ')}.`);
+  }
+
+  // Consultar grupos actuales del usuario
+  const { Groups = [] } = await cognito.send(
+    new AdminListGroupsForUserCommand({ UserPoolId: USER_POOL_ID, Username: username }),
+  );
+
+  // Remover de grupos anteriores si difieren del nuevo rol
+  for (const g of Groups) {
+    if (GRUPOS_VALIDOS.includes(g.GroupName) && g.GroupName !== nuevoRol) {
+      await cognito.send(
+        new AdminRemoveUserFromGroupCommand({
+          UserPoolId: USER_POOL_ID,
+          Username: username,
+          GroupName: g.GroupName,
+        }),
+      );
+    }
+  }
+
+  // Asociar al nuevo grupo si no lo tenía ya
+  const yaAsignado = Groups.some((g) => g.GroupName === nuevoRol);
+  if (!yaAsignado) {
+    await cognito.send(
+      new AdminAddUserToGroupCommand({
+        UserPoolId: USER_POOL_ID,
+        Username: username,
+        GroupName: nuevoRol,
+      }),
+    );
+  }
+
+  // Actualizar atributo custom:role
+  await cognito.send(
+    new AdminUpdateUserAttributesCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: username,
+      UserAttributes: [{ Name: 'custom:role', Value: nuevoRol }],
+    }),
+  );
+
+  await auditar({
+    accion: 'USUARIO_ROL_MODIFICADO',
+    userId: usuario.userId,
+    email: usuario.email,
+    recursoId: username,
+    ip: ipOrigen(evento),
+    detalles: {
+      nuevoRol,
+      rolesAnteriores: Groups.map((g) => g.GroupName),
+    },
+  });
+
+  return ok(
+    {
+      mensaje: `Rol de usuario actualizado a "${nuevoRol}" exitosamente.`,
+      usuario: {
+        username,
+        rol: nuevoRol,
+        grupos: [nuevoRol],
+      },
+    },
+    evento,
+  );
+}
+
 /**
- * GET  /admin/usuarios - listado del personal con sus grupos.
- * POST /admin/usuarios - alta de un operador nuevo.
+ * GET   /admin/usuarios - listado del personal con sus grupos.
+ * POST  /admin/usuarios - alta de un operador o cambio de rol ({ accion: 'cambiar_rol' }).
+ * PATCH /admin/usuarios/{id} - modificación de rol de un usuario existente.
  *
- * Ambas exigen el permiso de gestion de usuarios, exclusivo de directivo.
+ * Exigen el permiso de gestión de usuarios, exclusivo de directivo.
  */
 export const handler = manejar(async (evento) => {
   const usuario = identidad(evento);
   exigir(usuario, 'usuarios:gestionar');
 
-  const metodo = evento?.requestContext?.http?.method || 'GET';
-  if (metodo === 'POST') return crear(evento, usuario);
+  const metodo = (evento?.requestContext?.http?.method || evento?.httpMethod || 'GET').toUpperCase();
+  if (metodo === 'PATCH' || metodo === 'PUT') {
+    return actualizarRol(evento, usuario);
+  }
+  if (metodo === 'POST') {
+    const cuerpo = leerCuerpo(evento);
+    if (cuerpo?.accion === 'cambiar_rol' || (cuerpo?.username && cuerpo?.grupo && !cuerpo?.nombreCompleto)) {
+      return actualizarRol(evento, usuario, cuerpo);
+    }
+    return crear(evento, usuario);
+  }
   return listar(evento, usuario);
 });

@@ -144,6 +144,7 @@ test('cada grupo acumula solo los permisos que le tocan', () => {
 
   const supervisor = permisosDe(['supervisor']);
   assert.ok(supervisor.includes('reportes:asignar'));
+  assert.ok(supervisor.includes('reportes:eliminar'));
   assert.ok(!supervisor.includes('datos:exportar'));
 
   const directivo = permisosDe(['directivo']);

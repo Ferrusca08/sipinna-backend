@@ -1,6 +1,6 @@
 import { PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { s3, BUCKET_EVIDENCIA, KMS_KEY_ID, PRESIGN_EXPIRA_SEG } from './aws.js';
+import { s3, BUCKET_EVIDENCIA, PRESIGN_EXPIRA_SEG } from './aws.js';
 
 const EXTENSION_POR_TIPO = {
   'image/jpeg': 'jpg',
@@ -21,14 +21,25 @@ export async function generarUrlsDeSubida(reporteId, cantidad, tiposContenido = 
     const extension = EXTENSION_POR_TIPO[tipo] || 'jpg';
     const clave = `reportes/${reporteId}/evidencia-${desplazamiento + i + 1}.${extension}`;
 
+    // Sin parametros de cifrado en la firma, a proposito.
+    //
+    // SigV4 exige que el cliente reproduzca EXACTAMENTE los encabezados que
+    // quedaron firmados. Al declarar aqui ServerSideEncryption y SSEKMSKeyId,
+    // la firma pasaba a exigir tambien x-amz-server-side-encryption-aws-kms-key-id,
+    // que la app no enviaba, y S3 respondia 403 SignatureDoesNotMatch en toda
+    // subida de evidencia. Mandar el ARN de la llave al telefono para corregirlo
+    // seria peor: expone la infraestructura dentro del APK.
+    //
+    // El bucket ya cifra por omision con la llave del proyecto, asi que el objeto
+    // queda igual de protegido y la firma solo exige el encabezado host. Cuidado
+    // con "arreglarlo" declarando solo ServerSideEncryption: entonces S3 usa la
+    // llave gestionada por AWS y no la del proyecto.
     const url = await getSignedUrl(
       s3,
       new PutObjectCommand({
         Bucket: BUCKET_EVIDENCIA,
         Key: clave,
         ContentType: tipo,
-        ServerSideEncryption: 'aws:kms',
-        SSEKMSKeyId: KMS_KEY_ID,
       }),
       { expiresIn: PRESIGN_EXPIRA_SEG },
     );
